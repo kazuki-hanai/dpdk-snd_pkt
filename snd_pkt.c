@@ -21,7 +21,7 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 static inline int
-port_init(uint16_t port, struct rte_mempool *mbuf_pool)
+port_init(uint16_t port)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
 	const uint16_t rx_rings = 1, tx_rings = 1;
@@ -106,23 +106,38 @@ static __attribute__((noreturn)) void lcore_main(void) {
 	printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 			rte_lcore_id());
 
-    struct ether_hdr *eth_hdr;
-    struct ipv4_hdr *ipv4_hdr;
-    struct ether_addr daddr;
-    struct ether_addr saddr;
-    rte_eth_macaddr_get(port, &saddr);
+    struct rte_ether_addr daddr;
     daddr.addr_bytes[0] = 0x66;
     daddr.addr_bytes[1] = 0x93;
     daddr.addr_bytes[2] = 0xb6;
     daddr.addr_bytes[3] = 0x04;
     daddr.addr_bytes[4] = 0xbf;
     daddr.addr_bytes[5] = 0x7e;
+    struct rte_ether_addr saddr;
+    rte_eth_macaddr_get(port, &saddr);
 	for (;;) {
+        struct rte_ether_hdr *ethdr;
+        struct rte_ipv4_hdr *iph;
         struct rte_mbuf *bufs[BURST_SIZE];
-        bufs[0] = rte_pktmbuf_alloc(mem_pool);
-        iph = (struct ipv4_hdr *)rte_pktmbuf_append(bufs[0], sizeof(struct ipv4_hdr));
+
+        bufs[0] = rte_pktmbuf_alloc(mbuf_pool);
+        if ((ethdr = (struct rte_ether_hdr *)rte_pktmbuf_append(bufs[0], sizeof(struct rte_ether_hdr))) == 0)
+        {
+            rte_exit(EXIT_FAILURE, "Cannot pktmbuf_append\n");
+        }
+        rte_ether_addr_copy(&daddr, &ethdr->d_addr);
+        rte_ether_addr_copy(&saddr, &ethdr->s_addr);
+        ethdr->ether_type = rte_be_to_cpu_16(RTE_ETHER_TYPE_IPV4);
+
+        if ((iph = (struct rte_ipv4_hdr *)rte_pktmbuf_append(bufs[0], sizeof(struct rte_ipv4_hdr))) == 0)
+        {
+            rte_exit(EXIT_FAILURE, "Cannot pktmbuf_append\n");
+
+        }
+        memset(iph, 1, sizeof(struct rte_ipv4_hdr));
+
         const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-                bufs, nb_rx);
+                bufs, 1);
 
         if (likely(nb_tx == 0)) {
             rte_pktmbuf_free(bufs[0]);
@@ -151,7 +166,7 @@ int main(int argc, char *argv[]) {
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
-    if (port_init(0, mbuf_pool) != 0)
+    if (port_init(0) != 0)
 			rte_exit(EXIT_FAILURE, "Cannot init port0 \n");
 
 	if (rte_lcore_count() > 1)
