@@ -24,14 +24,14 @@
 
 static const struct rte_eth_conf port_conf_default = {
   .rxmode = {
-    .max_rx_pkt_len = ETHER_MAX_LEN,
+    .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
   },
 };
 
 struct flow_info {
   unsigned int packet_size; /* byte */
-  struct ether_addr eth_dst;
-  struct ether_addr eth_src;
+  struct rte_ether_addr eth_dst;
+  struct rte_ether_addr eth_src;
   uint8_t ip_dst[4];
   uint8_t ip_src[4];
 };
@@ -95,12 +95,12 @@ static struct rte_mbuf *
 construct_udp_pkt(struct rte_mempool *mbuf_pool, struct flow_info flow)
 {
   struct rte_mbuf *buf;
-  struct ether_hdr *eth;
-  struct ipv4_hdr *ip;
-  struct udp_hdr *udp;
+  struct rte_ether_hdr *eth;
+  struct rte_ipv4_hdr *ip;
+  struct rte_udp_hdr *udp;
   char *data;
   int i, data_size;
-  unsigned int packet_size = flow.packet_size - ETHER_CRC_LEN;
+  unsigned int packet_size = flow.packet_size - RTE_ETHER_CRC_LEN;
 
   /* allocation */
   buf = rte_pktmbuf_alloc(mbuf_pool);
@@ -111,13 +111,13 @@ construct_udp_pkt(struct rte_mempool *mbuf_pool, struct flow_info flow)
     rte_exit(EXIT_FAILURE, "rte_pktmbuf_append() failed\n");
 
   /* ether */
-  eth = rte_pktmbuf_mtod(buf, struct ether_hdr *);
-  ether_addr_copy(&flow.eth_dst, &eth->d_addr);
-  ether_addr_copy(&flow.eth_src, &eth->s_addr);
-  eth->ether_type = rte_cpu_to_be_16(ETHER_TYPE_IPv4);
+  eth = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
+  rte_ether_addr_copy(&flow.eth_dst, &eth->d_addr);
+  rte_ether_addr_copy(&flow.eth_src, &eth->s_addr);
+  eth->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
   /* ip */
-  ip = rte_pktmbuf_mtod_offset(buf, struct ipv4_hdr *, sizeof(*eth));
+  ip = rte_pktmbuf_mtod_offset(buf, struct rte_ipv4_hdr *, sizeof(*eth));
   ip->version_ihl = 0x45;
   ip->type_of_service = 0;
   ip->total_length = rte_cpu_to_be_16(packet_size - sizeof(*eth));
@@ -126,14 +126,14 @@ construct_udp_pkt(struct rte_mempool *mbuf_pool, struct flow_info flow)
   ip->time_to_live = 64;
   ip->next_proto_id = 0x11;
   ip->dst_addr = rte_cpu_to_be_32(
-      IPv4(flow.ip_dst[0], flow.ip_dst[1], flow.ip_dst[2], flow.ip_dst[3]));
+      RTE_IPV4(flow.ip_dst[0], flow.ip_dst[1], flow.ip_dst[2], flow.ip_dst[3]));
   ip->src_addr = rte_cpu_to_be_32(
-      IPv4(flow.ip_src[0], flow.ip_src[1], flow.ip_src[2], flow.ip_src[3]));
+      RTE_IPV4(flow.ip_src[0], flow.ip_src[1], flow.ip_src[2], flow.ip_src[3]));
   ip->hdr_checksum = 0;
   ip->hdr_checksum = rte_ipv4_cksum(ip);
 
   /* udp */
-  udp = rte_pktmbuf_mtod_offset(buf, struct udp_hdr *,
+  udp = rte_pktmbuf_mtod_offset(buf, struct rte_udp_hdr *,
       sizeof(*eth) + sizeof(*ip));
   udp->src_port = rte_cpu_to_be_16(20000);
   udp->dst_port = rte_cpu_to_be_16(20000);
@@ -307,7 +307,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pools[])
     return retval;
 
   /* Display the port MAC address. */
-  struct ether_addr addr;
+  struct rte_ether_addr addr;
   rte_eth_macaddr_get(port, &addr);
   printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
          " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
