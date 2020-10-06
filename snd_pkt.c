@@ -329,7 +329,6 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pools[])
 int
 main(int argc, char *argv[])
 {
-  unsigned nb_ports;
   uint16_t portid;
   struct rte_mempool *mbuf_pools[QUEUE_NUM_PER_PORT];
   struct tx_main_info tx0, tx1;
@@ -342,11 +341,6 @@ main(int argc, char *argv[])
 
   argc -= ret;
   argv += ret;
-
-  /* Check that there is a single port. */
-  nb_ports = rte_eth_dev_count_avail();
-  if (nb_ports != 1)
-    rte_exit(EXIT_FAILURE, "Error: number of ports must be one\n");
 
   /* Check that there is two lcores. */
   if (rte_lcore_count() != QUEUE_NUM_PER_PORT)
